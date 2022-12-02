@@ -41,7 +41,7 @@ kubedoom-deployment-6d69946486-dw6cp   1/1     Running   0          65s
 
 Включаем проксирование портов.
 
-dmitry@dmitry-gb:~port-forward pod/kubedoom-deployment-6d69946486-bv8td 9000:5900
+dmitry@dmitry-gb:~port-forward pod/kubedoom-deployment-6d69946486-dw6cp 9000:5900
 Forwarding from 127.0.0.1:9000 -> 5900
 Forwarding from [::1]:9000 -> 5900
 
