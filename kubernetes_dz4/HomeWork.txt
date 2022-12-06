@@ -1,0 +1,150 @@
+Экспортируем настройки кластера для подключения.
+
+dmitry@dmitry-gb:~/dz4$ export KUBECONFIG=kubernetes-cluster-pg_kubeconfig.yaml
+
+Проверяем, доступ к кластеру.
+
+dmitry@dmitry-gb:~/dz4$ kubectl cluster-info
+Kubernetes control plane is running at https://146.185.210.7:6443
+CoreDNS is running at https://146.185.210.7:6443/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy
+
+To further debug and diagnose cluster problems, use 'kubectl cluster-info dump'.
+
+dmitry@dmitry-gb:~/dz4$ kubectl get node
+NAME                                       STATUS   ROLES    AGE   VERSION
+kubernetes-cluster-pg-default-group-pg-0   Ready    <none>   15m   v1.21.4
+kubernetes-cluster-pg-default-group-pg-1   Ready    <none>   14m   v1.21.4
+kubernetes-cluster-pg-master-0             Ready    master   20m   v1.21.4
+dmitry@dmitry-gb:~/dz4$ 
+
+Создаем нужный нам namespace.
+
+dmitry@dmitry-gb:~/dz4$ kubectl create ns pg
+namespace/pg created
+
+Для запроса PVC нам понадобится класс хранилища, выбираем хранилище и создаем yaml для Persistent Volume и разворачиваем его.
+
+dmitry@dmitry-gb:~/dz4$ kubectl apply -f pvc.yaml
+persistentvolumeclaim/pg-storage created
+
+Проверяем, что сетевой диск создался.
+
+NAME         STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS       AGE
+pg-storage   Bound    pvc-e2473645-a209-4d64-a8c2-6cf08a6a6cbf   10Gi       RWX            csi-ceph-hdd-ms1   31s
+dmitry@dmitry-gb:~/dz4$ 
+
+Создадим secret для хранения пароля от БД.
+
+dmitry@dmitry-gb:~/dz4$ kubectl create secret generic pg-secret --from-literal=PASS=123
+secret/pg-secret created
+
+Проверим.
+
+dmitry@dmitry-gb:~/dz4$ kubectl get secret pg-secret
+NAME        TYPE     DATA   AGE
+pg-secret   Opaque   1      29s
+dmitry@dmitry-gb:~/dz4$ 
+
+Развернем деплоймент с базой.
+
+dmitry@dmitry-gb:~/dz4$ kubectl apply -f pg_deploy.yaml 
+deployment.apps/pg-deploy-db created
+dmitry@dmitry-gb:~/dz4$ kubectl get pod
+NAME                            READY   STATUS    RESTARTS   AGE
+pg-deploy-db-796868cfc9-7kn57   1/1     Running   0          79s
+dmitry@dmitry-gb:~/dz4$ 
+
+Создадим дополнительный под.
+dmitry@dmitry-gb:~/dz4$ kubectl apply -f pg-test-pod.yaml 
+pod/pg-pod created
+
+dmitry@dmitry-gb:~/dz4$ kubectl get pod
+NAME                            READY   STATUS    RESTARTS   AGE
+pg-deploy-db-796868cfc9-7kn57   1/1     Running   0          9m10s
+pg-pod                          1/1     Running   0          70s
+dmitry@dmitry-gb:~/dz4$ 
+
+Узнаем IP адреса подов. 
+
+dmitry@dmitry-gb:~/dz4$ kubectl get pod -o wide
+NAME                            READY   STATUS    RESTARTS   AGE     IP               NODE                                       NOMINATED NODE   READINESS GATES
+pg-deploy-db-796868cfc9-7kn57   1/1     Running   0          13m     10.100.109.192   kubernetes-cluster-pg-default-group-pg-1   <none>           <none>
+pg-pod                          1/1     Running   0          5m15s   10.100.247.193   kubernetes-cluster-pg-default-group-pg-0   <none>           <none>
+
+Заходим на дополнительный под
+kubectl exec -it pg-pod -- bash
+
+Подключаемся к БД.
+dmitry@dmitry-gb:~/dz4$ psql -h 10.100.109.192 -U test testdb
+
+testdb=#
+
+Создаем таблицу.
+
+testdb=# CREATE TABLE nameusers (name VARCHAR (255), age INT);
+CREATE TABLE
+testdb=# \dt
+         List of relations
+ Schema |   Name    | Type  | Owner 
+--------+-----------+-------+-------
+ public | nameusers | table | test
+(1 row)
+
+testdb=# INSERT INTO nameusers (name, age) VALUES ('Ivan', 20), ('Sergey', 30);
+INSERT 0 2
+testdb=# SELECT * FROM nameusers;
+  name  | age 
+--------+-----
+ Ivan   |  20
+ Sergey |  30
+(2 rows)
+
+Выходим, удаляем под с БД.
+
+dmitry@dmitry-gb:~/dz4$ kubectl get pod
+NAME                            READY   STATUS    RESTARTS   AGE
+pg-deploy-db-796868cfc9-7kn57   1/1     Running   0          19m
+pg-pod                          1/1     Running   0          5s
+
+dmitry@dmitry-gb:~/dz4$ kubectl delete pod pg-deploy-db-796868cfc9-7kn57
+pod "pg-deploy-db-796868cfc9-7kn57" deleted
+dmitry@dmitry-gb:~/dz4$ kubectl get pod
+NAME                            READY   STATUS     RESTARTS   AGE
+pg-deploy-db-796868cfc9-8gtwj   0/1     Init:0/1   0          10s
+pg-pod                          1/1     Running    0          16m
+
+Под пересоздался.
+
+dmitry@dmitry-gb:~/dz4$ kubectl get pod
+NAME                            READY   STATUS    RESTARTS   AGE
+pg-deploy-db-796868cfc9-8gtwj   1/1     Running   0          64s
+pg-pod                          1/1     Running   0          17m
+
+
+Смотрим новый айпи подключаемся к базе данных, проверяем.
+
+dmitry@dmitry-gb:~/dz4$ kubectl get pod -o wide
+NAME                            READY   STATUS    RESTARTS   AGE     IP               NODE                                       NOMINATED NODE   READINESS GATES
+pg-deploy-db-796868cfc9-8gtwj   1/1     Running   0          5m11s   10.100.247.196   kubernetes-cluster-pg-default-group-pg-0   <none>           <none>
+pg-pod                          1/1     Running   0          21m     10.100.247.195   kubernetes-cluster-pg-default-group-pg-0   <none>           <none>
+dmitry@dmitry-gb:~/dz4$ kubectl exec -it pg-pod -- bash
+root@pg-pod:/# psql -h 10.100.247.196 -U test testdb
+Password for user test: 
+psql (10.13 (Debian 10.13-1.pgdg90+1))
+Type "help" for help.
+
+testdb=# SELECT * FROM nameusers;
+  name  | age 
+--------+-----
+ Ivan   |  20
+ Sergey |  30
+(2 rows)
+
+testdb=# 
+
+
+
+
+
+
+
