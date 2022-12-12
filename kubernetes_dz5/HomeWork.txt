@@ -1,0 +1,99 @@
+Подключаемся к кластеру и проверяем его доступность.
+
+dmitry@dmitry-gb:~/dz5$ export KUBECONFIG=$KUBECONFIG:kubernetes-redmine_kubeconfig.yaml
+
+dmitry@dmitry-gb:~/dz5$ kubectl get node
+NAME                                 STATUS   ROLES    AGE   VERSION
+kubernetes-redmine-group-redmine-0   Ready    <none>   48m   v1.23.13
+kubernetes-redmine-group-redmine-1   Ready    <none>   48m   v1.23.13
+kubernetes-redmine-group-redmine-2   Ready    <none>   48m   v1.23.13
+kubernetes-redmine-master-0          Ready    master   48m   v1.23.13
+
+Создаем пространство имен и переключаемся на него.
+
+dmitry@dmitry-gb:~/dz5$ kubectl create ns redmine
+namespace/redmine created
+
+dmitry@dmitry-gb:~/dz5$ kubectl config set-context --current --namespace=redmine
+Context "default/kubernetes-redmine" modified.
+
+Подключаем сетевой диск.
+
+dmitry@dmitry-gb:~/dz5$ kubectl apply -f pvc.yaml
+
+dmitry@dmitry-gb:~/dz5$ kubectl get pvc
+NAME         STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS       AGE
+pg-storage   Bound    pvc-46dbc03c-54ae-4132-a2ce-a3f1e6fd18a1   5Gi        RWX            csi-ceph-hdd-ms1   7
+
+Подготавливаем секрет для базы данных.
+
+dmitry@dmitry-gb:~/dz5$ kubectl create secret generic pg-secret --from-literal=PASS=123
+
+Разворачиваем базу данных.
+
+dmitry@dmitry-gb:~/dz5$ kubectl apply -f pg-deploy.yaml 
+deployment.apps/pg-deploy created
+
+dmitry@dmitry-gb:~/dz5$ kubectl get pod
+NAME                         READY   STATUS    RESTARTS   AGE
+pg-deploy-8484d765b6-wpmx4   1/1     Running   0          48s
+
+Разворачиваем сервис для доступа к базе данных.
+
+dmitry@dmitry-gb:~/dz5$ kubectl apply -f pg-service.yaml 
+service/pg-service created
+
+создаем секрет для redmine.
+
+dmitry@dmitry-gb:~/dz5$ kubectl create secret generic redmine-secret --from-literal=KEY=123
+secret/redmine-secret created
+
+Разворачиваем redmine.
+
+dmitry@dmitry-gb:~/dz5$ kubectl apply -f redmine-deploy.yaml 
+deployment.apps/redmine-deploy created
+
+dmitry@dmitry-gb:~/dz5$ kubectl get pod
+NAME                             READY   STATUS    RESTARTS   AGE
+pg-deploy-8484d765b6-wpmx4       1/1     Running   0          3m30s
+redmine-deploy-5547b944b-slvbd   1/1     Running   0          75s
+ 
+Разворачиваем сервис для доступа к redmine.
+
+dmitry@dmitry-gb:~/dz5$ kubectl apply -f redmine-service.yaml 
+
+dmitry@dmitry-gb:~/dz5$ kubectl get service
+NAME              TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)    AGE
+pg-service        ClusterIP   10.254.105.205   <none>        5432/TCP   2m33s
+redmine-service   ClusterIP   10.254.138.105   <none>        80/TCP     8s
+
+Создаем ingress.
+
+dmitry@dmitry-gb:~/dz5$ kubectl apply -f ingress.yaml
+ingress.networking.k8s.io/redmine-ingress created
+
+Проверяем.
+
+dmitry@dmitry-gb:~/dz5$ kubectl get ingress
+NAME              CLASS    HOSTS   ADDRESS     PORTS   AGE
+redmine-ingress   <none>   *       10.0.0.13   80      14m
+
+dmitry@dmitry-gb:~/dz5$ kubectl get service -A
+NAMESPACE              NAME                                 TYPE           CLUSTER-IP       EXTERNAL-IP     PORT(S)                      AGE
+default                kubernetes                           ClusterIP      10.254.0.1       <none>          443/TCP                      54m
+ingress-nginx          ingress-nginx-controller             LoadBalancer   10.254.213.52    5.188.141.114   80:30080/TCP,443:30443/TCP   52m
+ingress-nginx          ingress-nginx-controller-admission   ClusterIP      10.254.146.204   <none>          443/TCP                      52m
+ingress-nginx          ingress-nginx-controller-metrics     ClusterIP      10.254.134.244   <none>          9913/TCP                     52m
+ingress-nginx          ingress-nginx-default-backend        ClusterIP      10.254.39.201    <none>          80/TCP                       52m
+kube-system            calico-node                          ClusterIP      None             <none>          9091/TCP                     54m
+kube-system            calico-typha                         ClusterIP      10.254.11.172    <none>          5473/TCP                     54m
+kube-system            csi-cinder-controller-service        ClusterIP      10.254.238.31    <none>          12345/TCP                    53m
+kube-system            kube-dns                             ClusterIP      10.254.0.10      <none>          53/UDP,53/TCP,9153/TCP       54m
+kube-system            metrics-server                       ClusterIP      10.254.98.14     <none>          443/TCP                      53m
+kubernetes-dashboard   dashboard-metrics-scraper            ClusterIP      10.254.221.57    <none>          8000/TCP                     53m
+kubernetes-dashboard   kubernetes-dashboard                 ClusterIP      10.254.137.77    <none>          443/TCP                      53m
+opa-gatekeeper         gatekeeper-webhook-service           ClusterIP      10.254.31.192    <none>          443/TCP                      51m
+redmine                pg-service                           ClusterIP      10.254.105.205   <none>          5432/TCP                     2m40s
+redmine                redmine-service                      ClusterIP      10.254.138.105   <none>          80/TCP                       15s
+
+Все сервисы поднялись, проверяем доступ через браузер по внешнему IP 5.188.141.114.
