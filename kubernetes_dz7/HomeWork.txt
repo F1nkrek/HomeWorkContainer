@@ -1,0 +1,98 @@
+Подключаемся к нашему кластеру.
+
+dmitry@dmitry-gb:~/dz7$ export KUBECONFIG=$KUBECONFIG:kubernetes-prometheus_kubeconfig.yaml
+dmitry@dmitry-gb:~/dz7$ kubectl get node
+NAME                                       STATUS   ROLES    AGE     VERSION
+kubernetes-prometheus-group-prometheus-0   Ready    <none>   9m41s   v1.23.13
+kubernetes-prometheus-group-prometheus-1   Ready    <none>   9m39s   v1.23.13
+kubernetes-prometheus-group-prometheus-2   Ready    <none>   9m36s   v1.23.13
+kubernetes-prometheus-group-prometheus-3   Ready    <none>   9m41s   v1.23.13
+kubernetes-prometheus-master-0             Ready    master   10m     v1.23.13
+
+Создаем configmap.
+
+dmitry@dmitry-gb:~/dz7$ kubectl apply -f configmap.yaml 
+configmap/prometheus-config created
+
+Создаем serviceaccount.
+
+dmitry@dmitry-gb:~/dz7$ kubectl apply -f serviceaccount.yaml 
+serviceaccount/prometheus created
+
+Создаем role.
+
+dmitry@dmitry-gb:~/dz7$ kubectl apply -f clusterrole.yaml 
+clusterrole.rbac.authorization.k8s.io/prometheus created
+clusterrolebinding.rbac.authorization.k8s.io/prometheus created
+
+Создаем prometheus.
+
+dmitry@dmitry-gb:~/dz7$ kubectl apply -f statefulset.yaml 
+statefulset.apps/prometheus created
+
+Проверим диски.
+
+dmitry@dmitry-gb:~/dz7$ kubectl get pvc
+NAME                STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS       AGE
+data-prometheus-0   Bound    pvc-2fa0210e-4d72-407b-92de-b23cc3ac1f58   5Gi        RWO            csi-ceph-hdd-gz1   4s
+
+dmitry@dmitry-gb:~/dz7$ kubectl get pod
+NAME           READY   STATUS    RESTARTS   AGE
+prometheus-0   0/1     Running   0          29s
+
+Создаем prometheus-service.
+
+dmitry@dmitry-gb:~/dz7$ kubectl apply -f prometheus-service.yaml 
+service/prometheus created
+
+dmitry@dmitry-gb:~/dz7$ kubectl get pod
+NAME           READY   STATUS    RESTARTS   AGE
+prometheus-0   1/1     Running   0          63s
+
+Создаем ingress.
+
+dmitry@dmitry-gb:~/dz7$ kubectl apply -f ingress.yaml
+ingress.networking.k8s.io/prometheus created
+
+dmitry@dmitry-gb:~/dz7$ kubectl get ingress
+NAME         CLASS    HOSTS   ADDRESS    PORTS   AGE
+prometheus   <none>   *       10.0.0.6   80      17m
+
+
+Создаем daemonset-nodeexplorer.
+
+dmitry@dmitry-gb:~/dz7$ kubectl apply -f daemonset-nodeexporter.yaml 
+daemonset.apps/node-exporter created
+
+dmitry@dmitry-gb:~/dz7$ kubectl get pod
+NAME                  READY   STATUS    RESTARTS   AGE
+node-exporter-4cx76   1/1     Running   0          5s
+node-exporter-7hb4q   1/1     Running   0          5s
+node-exporter-q5x65   1/1     Running   0          5s
+node-exporter-zspx7   1/1     Running   0          5s
+prometheus-0          1/1     Running   0          114s
+
+dmitry@dmitry-gb:~/dz7$ kubectl get svc -A
+NAMESPACE              NAME                                 TYPE           CLUSTER-IP       EXTERNAL-IP      PORT(S)                      AGE
+default                kubernetes                           ClusterIP      10.254.0.1       <none>           443/TCP                      22m
+default                prometheus                           ClusterIP      10.254.223.142   <none>           9090/TCP                     75s
+ingress-nginx          ingress-nginx-controller             LoadBalancer   10.254.184.6     89.208.198.194   80:30080/TCP,443:30443/TCP   20m
+ingress-nginx          ingress-nginx-controller-admission   ClusterIP      10.254.36.42     <none>           443/TCP                      20m
+ingress-nginx          ingress-nginx-controller-metrics     ClusterIP      10.254.211.157   <none>           9913/TCP                     20m
+ingress-nginx          ingress-nginx-default-backend        ClusterIP      10.254.209.59    <none>           80/TCP                       20m
+kube-system            calico-node                          ClusterIP      None             <none>           9091/TCP                     22m
+kube-system            calico-typha                         ClusterIP      10.254.181.245   <none>           5473/TCP                     22m
+kube-system            csi-cinder-controller-service        ClusterIP      10.254.66.73     <none>           12345/TCP                    21m
+kube-system            kube-dns                             ClusterIP      10.254.0.10      <none>           53/UDP,53/TCP,9153/TCP       21m
+kube-system            metrics-server                       ClusterIP      10.254.187.171   <none>           443/TCP                      20m
+kubernetes-dashboard   dashboard-metrics-scraper            ClusterIP      10.254.124.165   <none>           8000/TCP                     21m
+kubernetes-dashboard   kubernetes-dashboard                 ClusterIP      10.254.60.97     <none>           443/TCP                      21m
+opa-gatekeeper         gatekeeper-webhook-service           ClusterIP      10.254.39.18     <none>           443/TCP                      19m
+
+Проверяем, заходим через браузер на IP 89.208.198.194.
+
+
+
+
+
+
