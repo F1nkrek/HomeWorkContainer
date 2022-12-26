@@ -1,0 +1,303 @@
+Подключаемся к кластеру.
+
+dmitry@dmitry-gb:~/dz8$ export KUBECONFIG=$KUBECONFIG:kubernetes-cluster-cicd_kubeconfig.yaml
+
+Проверяем.
+
+dmitry@dmitry-gb:~/dz8$ kubectl cluster-info
+Kubernetes control plane is running at https://79.137.175.123:6443
+CoreDNS is running at https://79.137.175.123:6443/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy
+
+To further debug and diagnose cluster problems, use 'kubectl cluster-info dump'.
+
+dmitry@dmitry-gb:~/dz8$ kubectl get node
+NAME                                   STATUS   ROLES    AGE   VERSION
+kubernetes-cluster-cicd-group-cicd-0   Ready    <none>   11m   v1.23.13
+kubernetes-cluster-cicd-group-cicd-1   Ready    <none>   11m   v1.23.13
+kubernetes-cluster-cicd-group-cicd-2   Ready    <none>   11m   v1.23.13
+kubernetes-cluster-cicd-master-0       Ready    master   11m   v1.23.13
+
+Создаем namespace gitlab.
+
+dmitry@dmitry-gb:~/dz8$ kubectl create ns gitlab
+namespace/gitlab created
+
+Разворачиваем runner.
+
+dmitry@dmitry-gb:~/dz8$ kubectl apply --namespace gitlab -f gitlab-runner/gitlab-runner.yaml
+serviceaccount/gitlab-runner created
+secret/gitlab-runner created
+configmap/gitlab-runner created
+role.rbac.authorization.k8s.io/gitlab-runner created
+rolebinding.rbac.authorization.k8s.io/gitlab-runner created
+deployment.apps/gitlab-runner created
+
+Проверяем работу.
+
+dmitry@dmitry-gb:~/dz8$ kubectl get pod --namespace gitlab
+NAME                            READY   STATUS    RESTARTS   AGE
+gitlab-runner-544d587b9b-c4cgk   1/1     Running   0          91m
+
+Создаем namespace stage.
+
+dmitry@dmitry-gb:~/dz8$ kubectl create ns stage
+namespace/stage created
+
+Создаем namespace prod.
+
+dmitry@dmitry-gb:~/dz8$ kubectl create ns prod
+namespace/prod created
+
+Создаем авторизационные объекты, чтобы раннер мог деплоить в наши нэймспэйсы.
+
+dmitry@dmitry-gb:~/dz8$ kubectl create sa deploy --namespace stage
+serviceaccount/deploy created
+dmitry@dmitry-gb:~/dz8$ kubectl create rolebinding deploy --serviceaccount stage:deploy --clusterrole edit --namespace stage
+rolebinding.rbac.authorization.k8s.io/deploy created
+dmitry@dmitry-gb:~/dz8$ kubectl create sa deploy --namespace prod
+serviceaccount/deploy created
+dmitry@dmitry-gb:~/dz8$ kubectl create rolebinding deploy --serviceaccount prod:deploy --clusterrole edit --namespace prod
+rolebinding.rbac.authorization.k8s.io/deploy created
+
+Получаем токен для деплоя в stage.
+
+export NAMESPACE=stage; kubectl get secret $(kubectl get sa deploy --namespace $NAMESPACE -o jsonpath='{.secrets[0].name}') --namespace $NAMESPACE -o jsonpath='{.data.token}'
+ZXlKaGJHY2lPaUpTVXpJMU5pSXNJbXRwWkNJNklrdEpYME5TYzFGWlMzVk9VemM1UnpZMVJHTjBTa3g2ZG1GemIzUTNhVUp0UWtkUk5qWkdNR2syUWswaWZRLmV5SnBjM01pT2lK
+cmRXSmxjbTVsZEdWekwzTmxjblpwWTJWaFkyTnZkVzUwSWl3aWEzVmlaWEp1WlhSbGN5NXBieTl6WlhKMmFXTmxZV05qYjNWdWRDOXVZVzFsYzNCaFkyVWlPaUp6ZEdGblpTSXNJ
+bXQxWW1WeWJtVjBaWE11YVc4dmMyVnlkbWxqWldGalkyOTFiblF2YzJWamNtVjBMbTVoYldVaU9pSmtaWEJzYjNrdGRHOXJaVzR0Y1hveU5uY2lMQ0pyZFdKbGNtNWxkR1Z6TG1s
+dkwzTmxjblpwWTJWaFkyTnZkVzUwTDNObGNuWnBZMlV0WVdOamIzVnVkQzV1WVcxbElqb2laR1Z3Ykc5NUlpd2lhM1ZpWlhKdVpYUmxjeTVwYnk5elpYSjJhV05sWVdOamIzVnVk
+Qzl6WlhKMmFXTmxMV0ZqWTI5MWJuUXVkV2xrSWpvaVlUTTBNbVUxWXpndE9EaGhOaTAwTmpSbUxUbG1ObVl0TXpNMFl6TmtNR0ZrTVdZeUlpd2ljM1ZpSWpvaWMzbHpkR1Z0T25O
+bGNuWnBZMlZoWTJOdmRXNTBPbk4wWVdkbE9tUmxjR3h2ZVNKOS5oU2hPYzhlaS05S0dET1FuWU5Gd0NxMDRmWEQ5RXM3bUtFVXlWcWhEdlBZUE1weFFrQzN6aEtOc29kRENVeTFz
+c0FWZmFjMTlydThqRVlQa2VXSzl4Z0R4TGFmTmc4RUNrTG1nVjVPVWlnb3dOLUlvUFlBdGw5Z2J0bkFCWVEwdDJGZ2ZSRlB0OHVMNXpUajNHbkpvR2MydVgtUUc0V0lMejJUdEI3
+R3FLclllZ05vRk5kRnJyLW5ILW01UGZZNF9EdGpXcHVhb09aRWV6a1hsLTlIOTFuNzNUWGlGdE9MLWZHRm5kV1E0Ym9YTHVTYXQwZXU0elppN0lCM1BXdXEzZnFRYUI5R1ZydTZB
+aHZ1ZVFEODF0LVRtX0Uzd1l2cVJleXVlQzQ2c3hvYy1zbDhPWFFrOWJiZTNEVS0zZEh0WXJUNk5sVWhfX2V1MHFnMWswUThJVGc=
+
+Создаем Validates в проекте в Gitlab с именем K8S_STAGE_CI_TOKEN, и записываем туда токен.
+
+Получаем токен для деплоя в prod.
+
+dmitry@dmitry-gb:~/dz8$ export NAMESPACE=prod; kubectl get secret $(kubectl get sa deploy --namespace $NAMESPACE -o jsonpath='{.secrets[0].name}') --namespace $NAMESPACE -o jsonpath='{.data.token}'
+ZXlKaGJHY2lPaUpTVXpJMU5pSXNJbXRwWkNJNklrdEpYME5TYzFGWlMzVk9VemM1UnpZMVJHTjBTa3g2ZG1GemIzUTNhVUp0UWtkUk5qWkdNR2syUWswaWZRLmV5SnBjM01pT2lK
+cmRXSmxjbTVsZEdWekwzTmxjblpwWTJWaFkyTnZkVzUwSWl3aWEzVmlaWEp1WlhSbGN5NXBieTl6WlhKMmFXTmxZV05qYjNWdWRDOXVZVzFsYzNCaFkyVWlPaUp3Y205a0lpd2lh
+M1ZpWlhKdVpYUmxjeTVwYnk5elpYSjJhV05sWVdOamIzVnVkQzl6WldOeVpYUXVibUZ0WlNJNkltUmxjR3h2ZVMxMGIydGxiaTF6TkcxcllpSXNJbXQxWW1WeWJtVjBaWE11YVc4
+dmMyVnlkbWxqWldGalkyOTFiblF2YzJWeWRtbGpaUzFoWTJOdmRXNTBMbTVoYldVaU9pSmtaWEJzYjNraUxDSnJkV0psY201bGRHVnpMbWx2TDNObGNuWnBZMlZoWTJOdmRXNTBM
+M05sY25acFkyVXRZV05qYjNWdWRDNTFhV1FpT2lJMk56VTVaR1V5TnkxbU5EQXhMVFJoWkRBdFlXVTNZaTFoWmpnek9EZzJNVGhrWmpFaUxDSnpkV0lpT2lKemVYTjBaVzA2YzJW
+eWRtbGpaV0ZqWTI5MWJuUTZjSEp2WkRwa1pYQnNiM2tpZlEuRkVMckVKNDluZnZtZXJraHNSVTRydDJjaEtIX2NXX2cwUXNUcTJxU0lQZmsyMUNYTm1wSEZxcFFNdlc1YWVKN0ow
+LTljUVppb2dvWTNvZ2ZEM1AwV2pfakJhejlJRXB1MzNLLTNRUklNZDZ3dE9RbjFobHVSejBCUEtRaEd5ZTgzUTZCZjRPMUdtR0djdXdRMFRGU09QQTNGUHh2Skxjay0wSFUzV2tM
+b212VTBtR2VtRzVqVFF2Vlh3UUtaVWw0eUFyQVpWVFBkemVwcmxPZVJDTWNQWjJYWU40eVI0MWVYUHBYODlpV3E3VDRNcDlZV243eEFsdnRVV181U1VKZnBHTUJWc0Rvb2U0UklY
+S2NlR09ic0JVQmRJeVQ1bHZ0UVVvXzZaeVk4TVJzZ2tQZUZuaGZtRTVnR3ByT3BNX1RsOUpSbmxZMVN1cklfVEtVRER2WDhR
+
+Создать Validates в проекте в Gitlab с именем K8S_PROD_CI_TOKEN, и записываем туда токен.
+
+Создаем секреты.
+
+dmitry@dmitry-gb:~/dz8$ kubectl create secret docker-registry gitlab-registry --docker-server=registry.gitlab.com --docker-username=gitlab+deploy-token-1613543 --docker-password=NkfZa7qFy-mBazXL_99T --docker-email=admin@admin.admin --namespace stage
+secret/gitlab-registry created
+
+dmitry@dmitry-gb:~/dz8$ kubectl create secret docker-registry gitlab-registry --docker-server=registry.gitlab.com --docker-username=gitlab+deploy-token-1613543 --docker-password=NkfZa7qFy-mBazXL_99T --docker-email=admin@admin.admin --namespace prod
+secret/gitlab-registry created
+
+Патчим дефолтный сервис аккаунт для автоматического использование pull secret.
+
+dmitry@dmitry-gb:~/dz8$ kubectl patch serviceaccount default -p '{"imagePullSecrets": [{"name": "gitlab-registry"}]}' -n stage
+serviceaccount/default patched
+
+dmitry@dmitry-gb:~/dz8$ kubectl patch serviceaccount default -p '{"imagePullSecrets": [{"name": "gitlab-registry"}]}' -n prod
+serviceaccount/default patched
+
+Разворачиваем postgres в stage.
+
+dmitry@dmitry-gb:~/dz8$ kubectl apply --namespace stage -f app/kube/postgres/
+secret/app created
+service/database created
+statefulset.apps/database created
+
+dmitry@dmitry-gb:~/dz8$ kubectl get pod --namespace stage
+NAME         READY   STATUS    RESTARTS   AGE
+database-0   1/1     Running   0          34s
+
+Разворачиваем postgres в prod.
+
+dmitry@dmitry-gb:~/dz8$ kubectl apply --namespace prod -f app/kube/postgres/
+secret/app created
+service/database created
+statefulset.apps/database created
+
+dmitry@dmitry-gb:~/dz8$ kubectl get pod --namespace prod
+NAME         READY   STATUS    RESTARTS   AGE
+database-0   1/1     Running   0          16s
+
+Меняем хост в ингрессе на stage и применяем манифесты в stage.
+
+dmitry@dmitry-gb:~/dz8$ kubectl apply --namespace stage -f app/kube
+deployment.apps/geekbrains created
+ingress.networking.k8s.io/geekbrains created
+service/geekbrains created
+
+dmitry@dmitry-gb:~/dz8$ kubectl get pod --namespace stage
+NAME                         READY   STATUS    RESTARTS   AGE
+database-0                   1/1     Running   0          7m56s
+geekbrains-95dc75b78-555fh   1/1     Running   0          5m17s
+geekbrains-95dc75b78-w9rc8   1/1     Running   0          5m17s
+
+Меняем хост в ингрессе на prod и применяем манифесты в prod.
+
+dmitry@dmitry-gb:~/dz8$ kubectl apply --namespace prod -f app/kube
+deployment.apps/geekbrains created
+ingress.networking.k8s.io/geekbrains created
+service/geekbrains create
+
+dmitry@dmitry-gb:~/dz8$ kubectl get pod --namespace prod
+NAME                         READY   STATUS    RESTARTS   AGE
+database-0                   1/1     Running   0          7m16s
+geekbrains-95dc75b78-n7x7c   1/1     Running   0          4m49s
+geekbrains-95dc75b78-rx27c   1/1     Running   0          4m49s
+
+
+Проверяем.
+
+dmitry@dmitry-gb:~/dz8$ kubectl get svc -A
+NAMESPACE              NAME                                 TYPE           CLUSTER-IP       EXTERNAL-IP      PORT(S)                      AGE
+default                kubernetes                           ClusterIP      10.254.0.1       <none>           443/TCP                      42m
+ingress-nginx          ingress-nginx-controller             LoadBalancer   10.254.239.77    95.163.250.214   80:30080/TCP,443:30443/TCP   40m
+ingress-nginx          ingress-nginx-controller-admission   ClusterIP      10.254.137.77    <none>           443/TCP                      40m
+ingress-nginx          ingress-nginx-controller-metrics     ClusterIP      10.254.248.209   <none>           9913/TCP                     40m
+ingress-nginx          ingress-nginx-default-backend        ClusterIP      10.254.207.22    <none>           80/TCP                       40m
+kube-system            calico-node                          ClusterIP      None             <none>           9091/TCP                     42m
+kube-system            calico-typha                         ClusterIP      10.254.29.172    <none>           5473/TCP                     42m
+kube-system            csi-cinder-controller-service        ClusterIP      10.254.67.125    <none>           12345/TCP                    41m
+kube-system            kube-dns                             ClusterIP      10.254.0.10      <none>           53/UDP,53/TCP,9153/TCP       41m
+kube-system            metrics-server                       ClusterIP      10.254.51.50     <none>           443/TCP                      40m
+kubernetes-dashboard   dashboard-metrics-scraper            ClusterIP      10.254.5.56      <none>           8000/TCP                     41m
+kubernetes-dashboard   kubernetes-dashboard                 ClusterIP      10.254.159.173   <none>           443/TCP                      41m
+opa-gatekeeper         gatekeeper-webhook-service           ClusterIP      10.254.99.76     <none>           443/TCP                      39m
+prod                   database                             ClusterIP      10.254.127.248   <none>           5432/TCP                     3m11s
+prod                   geekbrains                           ClusterIP      10.254.60.101    <none>           8000/TCP                     44s
+stage                  database                             ClusterIP      10.254.58.120    <none>           5432/TCP                     4m13s
+stage                  geekbrains                           ClusterIP      10.254.76.77     <none>           8000/TCP                     91s
+
+!!! Тут у меня первая проблема, постоянно "Bad Gateway". Не могу понять почему менял настройки ingress ничего не помогло, хотя все деплоится без ошибок.
+
+dmitry@dmitry-gb:~/dz8$ curl 95.163.250.214/users -H "Host: stage" -X POST -d '{"name": "Andrey", "age": 25, "city": "Novosibirsk"}'
+<html>
+<head><title>502 Bad Gateway</title></head>
+<body>
+<center><h1>502 Bad Gateway</h1></center>
+<hr><center>nginx</center>
+</body>
+</html>
+dmitry@dmitry-gb:~/dz8$ curl 95.163.250.214/users -H "Host: prod" -X POST -d '{"name": "Andrey", "age": 25, "city": "Novosibirsk"}'
+<html>
+<head><title>502 Bad Gateway</title></head>
+<body>
+<center><h1>502 Bad Gateway</h1></center>
+<hr><center>nginx</center>
+</body>
+</html>
+
+Комманда describe.
+
+dmitry@dmitry-gb:~/dz8$ kubectl describe pod database-0 --namespace stage
+Name:             database-0
+Namespace:        stage
+Priority:         0
+Service Account:  default
+Node:             kubernetes-cluster-cicd-group-cicd-2/10.0.0.11
+Start Time:       Mon, 26 Dec 2022 16:20:01 +0700
+Labels:           app=database
+                  controller-revision-hash=database-7b99cdfbd5
+                  statefulset.kubernetes.io/pod-name=database-0
+Annotations:      cni.projectcalico.org/containerID: ce983fb44cfc1ce5603c1516be8e3baeb0259d8a20cdf3bb10e168d72874f8a0
+                  cni.projectcalico.org/podIP: 10.100.219.192/32
+                  cni.projectcalico.org/podIPs: 10.100.219.192/32
+Status:           Running
+IP:               10.100.219.192
+IPs:
+  IP:           10.100.219.192
+Controlled By:  StatefulSet/database
+Containers:
+  postgres:
+    Container ID:   cri-o://52588e71e14b7ddd93200a23ef29ef3da5efb84a935dd407446a19434538d94b
+    Image:          postgres:10.13
+    Image ID:       docker.io/library/postgres@sha256:0bed71d0c0837b4afcd4e04ea5f5a6c680d96049a0ab3770d0fbc22504282abc
+    Port:           5432/TCP
+    Host Port:      0/TCP
+    State:          Running
+      Started:      Mon, 26 Dec 2022 16:20:31 +0700
+    Ready:          True
+    Restart Count:  0
+    Environment:
+      POSTGRES_USER:      app
+      POSTGRES_DB:        users
+      PGDATA:             /var/lib/postgresql/data/pgdata
+      POSTGRES_PASSWORD:  <set to the key 'db-password' in secret 'app'>  Optional: false
+    Mounts:
+      /var/lib/postgresql/data from data (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-np4vd (ro)
+Conditions:
+  Type              Status
+  Initialized       True 
+  Ready             True 
+  ContainersReady   True 
+  PodScheduled      True 
+Volumes:
+  data:
+    Type:       PersistentVolumeClaim (a reference to a PersistentVolumeClaim in the same namespace)
+    ClaimName:  data-database-0
+    ReadOnly:   false
+  kube-api-access-np4vd:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    ConfigMapOptional:       <nil>
+    DownwardAPI:             true
+QoS Class:                   BestEffort
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type     Reason                  Age   From                     Message
+  ----     ------                  ----  ----                     -------
+  Warning  FailedScheduling        35m   default-scheduler        0/4 nodes are available: 4 pod has unbound immediate PersistentVolumeClaims.
+  Normal   Scheduled               35m   default-scheduler        Successfully assigned stage/database-0 to kubernetes-cluster-cicd-group-cicd-2
+  Normal   SuccessfulAttachVolume  35m   attachdetach-controller  AttachVolume.Attach succeeded for volume "pvc-2c2db2b6-a6c3-4012-a5e3-41151ad0ae99"
+  Normal   Pulling                 35m   kubelet                  Pulling image "postgres:10.13"
+  Normal   Pulled                  34m   kubelet                  Successfully pulled image "postgres:10.13" in 20.453421808s
+  Normal   Created                 34m   kubelet                  Created container postgres
+  Normal   Started                 34m   kubelet                  Started container postgres
+
+
+
+!!! Так же у меня не проходит билд на Gitlab. Раннер видит. Пробовал разные версии - не помогло.
+!!! Менял в gitlab-ranner.yaml строки:
+    securityContext:
+      allowPrivilegeEscalation: true
+      privileged: true
+      
+    Не помогло.
+    
+!!! Изменял имя образа в .gitlab-ci.yaml - не помогло.
+!!! Добавлял строки:
+    - sed -i "s,__IMAGE__,$CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG.$CI_PIPELINE_ID,g" kube/deployment.yaml
+    - sed -i "s,__STAGES__,$CI_ENVIRONMENT_NAME,g" kube/ingress.yaml
+    
+    Не помогло.
+    
+!!! Добавлял также строку:
+    - until docker info; do sleep 1; done
+    
+    Ошибка "Cannot connect to the Docker daemon at tcp://docker:2375. Is the docker daemon running?" уходит, но идет бесконечный билд.
+    
+!!! Пробовал включать и отключать TLS. Не помогло.
+
+Я не могу найти причину, почему не проходит билд, самостоятельно. Не могу понять где ошибка.
+
+Ссылка на Gitlab: https://gitlab.com/F1nkrek/geekbrains
+    
+
+
+gitlab+deploy-token-1615511
+
+jz7hjzTFkmmDZ-GRz-zT
+
+
