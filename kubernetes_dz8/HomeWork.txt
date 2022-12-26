@@ -287,11 +287,14 @@ Events:
     
 !!! Добавлял также строку:
     - until docker info; do sleep 1; done
-    
+       
     Ошибка "Cannot connect to the Docker daemon at tcp://docker:2375. Is the docker daemon running?" уходит, но идет бесконечный билд.
     
+    https://gitlab.com/gitlab-org/gitlab-runner/-/issues/27215/?_gl=1%2a8534ci%2a_ga%2aMjA2NDQ4ODc5MS4xNjY0MzUwNDU4%2a_ga_ENFH3X7M5Y%2aMTY3MTYyOTEyOC4yMC4wLjE2NzE2MjkxMjguMC4wLjA
+    
 !!! Пробовал включать и отключать TLS. Не помогло.
+https://stackoverflow.com/questions/61105333/cannot-connect-to-the-docker-daemon-at-tcp-localhost2375-is-the-docker-daem
 
-Я не могу найти причину, почему не проходит билд, самостоятельно. Не могу понять где ошибка.
+Я не могу найти причину, почему не проходит билд, самостоятельно. Хотелось бы понять почему.
 
 Ссылка на Gitlab: https://gitlab.com/F1nkrek/geekbrains
