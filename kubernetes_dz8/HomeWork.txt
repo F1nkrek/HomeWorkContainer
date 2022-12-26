@@ -176,6 +176,8 @@ prod                   geekbrains                           ClusterIP      10.25
 stage                  database                             ClusterIP      10.254.58.120    <none>           5432/TCP                     4m13s
 stage                  geekbrains                           ClusterIP      10.254.76.77     <none>           8000/TCP                     91s
 
+
+
 !!! Тут у меня первая проблема, постоянно "Bad Gateway". Не могу понять почему менял настройки ingress ничего не помогло, хотя все деплоится без ошибок.
 
 dmitry@dmitry-gb:~/dz8$ curl 95.163.250.214/users -H "Host: stage" -X POST -d '{"name": "Andrey", "age": 25, "city": "Novosibirsk"}'
@@ -293,11 +295,3 @@ Events:
 Я не могу найти причину, почему не проходит билд, самостоятельно. Не могу понять где ошибка.
 
 Ссылка на Gitlab: https://gitlab.com/F1nkrek/geekbrains
-    
-
-
-gitlab+deploy-token-1615511
-
-jz7hjzTFkmmDZ-GRz-zT
-
-
